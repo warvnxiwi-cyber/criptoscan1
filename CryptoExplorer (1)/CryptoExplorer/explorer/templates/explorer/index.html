@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crypto Explorer</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0e14;--panel:#141a25;--line:#263143;--muted:#91a0b5;--accent:#8aa5ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f1f5f9;font:15px Inter,system-ui,Arial,sans-serif}
+header{padding:22px max(22px,calc((100% - 1120px)/2));border-bottom:1px solid #202938;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:19px;font-weight:850;letter-spacing:.04em}.logo span{color:var(--accent)}.status{font-size:12px;color:var(--muted)}
+main{max-width:1120px;margin:48px auto;padding:0 22px}h1{font-size:clamp(28px,4vw,40px);margin:0 0 10px}.subtitle,.muted{color:var(--muted)}.subtitle{margin:0 0 30px}
+.search{display:flex;gap:10px;margin-bottom:34px}input,select{background:var(--panel);color:white;border:1px solid var(--line);border-radius:10px;padding:14px;outline:none}input{flex:1;min-width:0}input:focus,select:focus{border-color:var(--accent)}button{background:var(--accent);color:#0b1020;border:0;border-radius:10px;padding:0 24px;font-weight:750;cursor:pointer}button:hover{filter:brightness(1.08)}
+h2{font-size:19px;margin:34px 0 16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:19px;transition:.18s}.card:hover{border-color:var(--accent);transform:translateY(-2px)}.coin{display:flex;align-items:center;gap:12px}.coin img{width:34px;height:34px;border-radius:50%}.card strong{display:block;margin-bottom:7px}.muted{font-size:13px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}table{width:100%;border-collapse:collapse;background:var(--panel);min-width:590px}th,td{padding:15px 17px;text-align:left;border-bottom:1px solid var(--line)}th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}td{font-size:14px}tr:last-child td{border-bottom:0}.green{color:#3bd6a0}.red{color:#ff7885}.empty{color:var(--muted);padding:16px 0}
+footer{text-align:center;color:#64748b;padding:40px 20px;font-size:12px}
+@media(max-width:620px){header{padding:18px 20px}.status{display:none}main{margin-top:34px}.search{flex-wrap:wrap}.search input,.search select,.search button{width:100%;min-height:48px}.search input{flex:auto}}
+</style>
+</head>
+<body>
+<header><div class="logo">CRYPTO<span>EXPLORER</span></div><div class="status">● Публичные данные рынка</div></header>
+<main>
+<h1>Blockchain Explorer</h1>
+<p class="subtitle">Исследуй криптовалюты и блокчейн-экосистемы</p>
+<form method="get" class="search">
+  <input name="q" maxlength="80" value="{{ query }}" placeholder="Bitcoin, Ethereum, Solana...">
+  <select name="type">
+    <option value="all" {% if category == "all" %}selected{% endif %}>Всё</option>
+    <option value="coins" {% if category == "coins" %}selected{% endif %}>Криптовалюты</option>
+    <option value="chains" {% if category == "chains" %}selected{% endif %}>Блокчейны</option>
+  </select>
+  <button type="submit">Поиск</button>
+</form>
+
+{% if query %}
+<h2>Результаты поиска: “{{ query }}”</h2>
+<div class="grid">
+{% for coin in coins %}
+<div class="card">
+  <div class="coin">
+    {% if coin.image %}<img src="{{ coin.image }}" alt="">{% endif %}
+    <div><strong>{{ coin.name }}</strong><span class="muted">{{ coin.symbol }}</span></div>
+  </div>
+  <p class="muted">Ранг по капитализации: {{ coin.rank|default:"нет данных" }}</p>
+</div>
+{% endfor %}
+{% for chain in chains %}
+<div class="card">
+  <strong>{{ chain.name }}</strong>
+  <p class="muted">Токен: {{ chain.token }}</p>
+  <p class="muted">TVL: ${{ chain.tvl|floatformat:2 }}</p>
+</div>
+{% endfor %}
+{% if not coins and not chains %}<p class="empty">Ничего не найдено или API временно недоступен.</p>{% endif %}
+</div>
+{% endif %}
+
+
+<h2>Blockchain Interaction</h2>
+<p class="subtitle">Чтение публичных данных EVM-сетей через JSON-RPC. Приватные ключи не запрашиваются.</p>
+<section class="card" style="margin-bottom:18px">
+<form method="get" class="search" style="margin-bottom:0">
+  <input type="hidden" name="q" value="{{ query }}">
+  <input type="hidden" name="type" value="{{ category }}">
+  <select name="network" aria-label="Блокчейн-сеть">
+    {% for key, network in networks.items %}
+    <option value="{{ key }}" {% if interaction.network == key %}selected{% endif %}>{{ network.name }}</option>
+    {% endfor %}
+  </select>
+  <input name="address" placeholder="Публичный адрес кошелька (0x...)" value="{{ interaction.address }}">
+  <button type="submit">Баланс</button>
+</form>
+<p class="muted" style="margin-top:12px">Сеть: {{ interaction.network_name }} · {% if interaction.status.ok %}<span class="green">RPC доступен</span> · блок №{{ interaction.status.block_number }}{% else %}<span class="red">RPC недоступен</span>{% endif %}</p>
+</section>
+
+<div class="grid">
+  <div class="card">
+    <strong>Поиск транзакции</strong>
+    <form method="get">
+      <input type="hidden" name="network" value="{{ interaction.network }}">
+      <input name="tx_hash" placeholder="Хеш транзакции 0x..." style="width:100%;margin:8px 0">
+      <button type="submit" style="min-height:42px;width:100%">Найти транзакцию</button>
+    </form>
+  </div>
+  <div class="card">
+    <strong>Информация о блоке</strong>
+    <form method="get">
+      <input type="hidden" name="network" value="{{ interaction.network }}">
+      <input name="block_number" type="number" min="0" placeholder="Номер блока" style="width:100%;margin:8px 0">
+      <button type="submit" style="min-height:42px;width:100%">Найти блок</button>
+    </form>
+  </div>
+</div>
+
+{% if interaction.error %}
+<p class="card red" style="margin-top:14px">{{ interaction.error }}</p>
+{% endif %}
+{% if interaction.balance %}
+<div class="card" style="margin-top:14px">
+  <span class="muted">Баланс адреса · {{ interaction.network_name }}</span>
+  <strong style="font-size:25px;margin-top:8px">{{ interaction.balance }} {{ interaction.symbol }}</strong>
+  <p class="muted" style="overflow-wrap:anywhere">{{ interaction.address }}</p>
+</div>
+{% endif %}
+{% if interaction.transaction %}
+<div class="card" style="margin-top:14px">
+  <strong>Транзакция · {{ interaction.transaction.status }}</strong>
+  <p class="muted" style="overflow-wrap:anywhere">Хеш: {{ interaction.transaction.hash }}</p>
+  <p>От: <span class="muted">{{ interaction.transaction.from }}</span></p>
+  <p>Кому: <span class="muted">{{ interaction.transaction.to }}</span></p>
+  <p>Сумма: {{ interaction.transaction.value }} {{ interaction.symbol }}</p>
+  <p>Блок: {{ interaction.transaction.block }}</p>
+</div>
+{% endif %}
+{% if interaction.block %}
+<div class="card" style="margin-top:14px">
+  <strong>Блок №{{ interaction.block.number }}</strong>
+  <p class="muted" style="overflow-wrap:anywhere">Хеш: {{ interaction.block.hash }}</p>
+  <p>Unix-время: {{ interaction.block.timestamp }}</p>
+  <p>Транзакций: {{ interaction.block.transactions }}</p>
+  <p>Использовано газа: {{ interaction.block.gas_used }}</p>
+</div>
+{% endif %}
+
+
+<h2>Популярные криптовалюты</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Монета</th><th>Цена</th><th>Изменение за 24ч</th><th>Капитализация</th></tr></thead>
+<tbody>
+{% for coin in market %}
+<tr>
+<td><strong>{{ coin.name }}</strong> <span class="muted">{{ coin.symbol|upper }}</span></td>
+<td>${{ coin.current_price|floatformat:4 }}</td>
+<td class="{% if coin.price_change_percentage_24h >= 0 %}green{% else %}red{% endif %}">{{ coin.price_change_percentage_24h|floatformat:2 }}%</td>
+<td>${{ coin.market_cap|floatformat:0 }}</td>
+</tr>
+{% empty %}<tr><td colspan="4">Данные временно недоступны. Попробуйте обновить страницу позже.</td></tr>{% endfor %}
+</tbody></table></div>
+</main>
+<footer>CRYPTO EXPLORER · Django · CoinGecko · DefiLlama</footer>
+</body>
+</html>
